@@ -30,8 +30,61 @@ def parse_options(options_str):
     return result
 
 
+# Jezeli jest ustawiony ssh/docker
+# Zweryfikuj, czy na zdalnym komputerze jest pydevops w tej samej wersji
+# co ten pydevops, jezeli nie -> rzuc wyjatek
+# wykonaj obecna komende dokladnie z tymi samymi parametrami, tylko
+# przekaz host=localhost
+
+# jenkins projects:
+# project, platform (platforma musi byc jakims parametrem, ktory mozna odczytac w Jenkinsfile)
+# dzieki temu mamy mozliwosc uruchomienia builda dla wielu platform jednoczesnie)
+# Typ builda (Debug, Release, RelWithInfo): parametr w Jenkinsfile, ktory nastepnie jest przekazany do
+# Jenkins?
+# Git pull podane repozytorium (na hoscie) -- utrzymaj hosta
+# wykonaj sekwencje operacji:
+# init:
+# Init jest taki sam
+# linux amd64: (host okreslany na podstawie parametru w jenkinsfile)
+# pydevops --step=init --host=localhost --docker=file:sciezka do DockerFile (np. .docker/Dockerfile)
+# Uruchom kontener docker (wykonaj build, etc.), o tagu
+# Skopiuj dane do docelowego folderu: okreslony w ~/.pydevops/cfg.yml
+# folder zostanie skopiowany do {build_dir}/{project_name}/git hash, jezeli folder istnieje: usun stary, zapisz nowy
+# Linux arm64:
+#       pydevops --step=init --host=148.81.52.232:8222 --docker=file:sciezka do dockerFile (np.docker/Dockerfile)
+# skopiuj dociagniete zrodla na docelowy komputer (do jakiego folderu?) uzywajac scp
+# upewnij sie, ze zdalny komputer ma zainstalowany pydevops w takiej samej wersji, co host (byc moze uruchom virtualenv -> pip install?)
+# wykonaj na zdalnym polecenie pydevops (z host=localhost)
+# Reszta leci po staremu
+# Windows
+# pydevops --step=init --host=148.81.52.232:4222
+# upewnij sie, ze zdalny komputer ma zainstalowany pydevops o takiej samej wersji
+# wykonaj na zdalnym polecenie pydevops (z host=localhost)
+# pydevops --step=cfg
+# ssh: wykonaj na zdalnym polecenie
+# docker: wystartuj kontener dla obrazu o tagu taki, jak hash (byc moze lepiej wziac tag)
+# ...
+# pydevops --step=install
+# ssh: sciezka docelowa na tym, na ktorym jest to wykonywane (uwaga: trzeba sprawdzic, czy jest Windows, czy Linux)
+# docker: zainstaluj w folderze hosta (docker powinien zostac uruchomiony z zamontowanym folderem docelowym)
+
+# ------ Plik konfiguracyjny
+# steps = {
+
+# }
+# Okresla zbior steps, ktore moga byc wykonane (cmake_cfg, build, etc.) -> dla kazdego step przypisuje odpowiednia operacje
+# Dla kazdej z operacji okreslone beda domyslne parametry (jezeli jakis bedzie brakowalo, uzytkownik bedzie musial wskazac)
+# Okresla domyslny proces, ktory bedzie wykonany w momencie zrobienia pydevops . np. sekwencje operacji cfg, build, install
+# Pydevops umozliwia wykonanie pojedynczych krokow, ale rowniez szeregu krokow (jak przekazywac parametry? id_operacji:nazwa_parametru, jest też możliwosc wskazania )
+# plik konfiguracyjny
+# init steps: [cfg]
+# build steps: [build, install]
+# wykonanie pydevops, w sytuacji gdy nie isntieje folder .pydevops, skutkuje wykonaniem init steps, nastepnie build steps
+#
+
+
 def main():
-    parser = argparse.ArgumentParser(description="DevOps Python tools")
+    parser = argparse.ArgumentParser(description="DevOps tools")
     parser.add_argument("--step", dest="step",
                         help="Step to execute, when not provided, "
                              "the sequence of steps will be executed",
