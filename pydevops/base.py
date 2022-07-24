@@ -17,11 +17,8 @@ class Step(ABC):
         raise ValueError("Abstract method")
 
 
-@dataclass(frozen=True)
-class StepInstance:
-    cls: object
-    defaults: dict
-
+class StepContext:
+    pass
 
 class Environment(ABC):
 

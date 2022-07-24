@@ -1,8 +1,14 @@
-from pydevops.base import Step
+from pydevops.base import Step, StepContext
 
 
 class Configure(Step):
-    pass
+
+    def __init__(self):
+
+
+    def execute(self, ctx: StepContext):
+        ctx.sh("cmake")
+        # TODO dorzuc do
 
 
 class Build(Step):
