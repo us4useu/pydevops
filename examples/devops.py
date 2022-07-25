@@ -1,6 +1,18 @@
+import os
 import pydevops.cmake as cmake
 import pydevops.conan as conan
 import pydevops.us4us as us4us
+
+
+def get_default_generator_for_current_os():
+    if os.name == "nt":
+        return "Visual Studio 15 2017 Win64"
+    else:
+        return "Unix Makefiles"
+
+
+# pydevops version
+version = "0.1.0"
 
 stages = {
     "cfg": (
@@ -14,32 +26,31 @@ stages = {
     "publish_releases": us4us.PublishReleases
 }
 
+init_stages = ["cfg"]
+build_stages = ["build", "test", "install"]
+
 aliases = {
     "build_type": (
-        "cfg/conan/build_type",
-        "cfg/cmake/CMAKE_BUILD_TYPE",
-        "build/config",
-        "install/config"
-    )
+        "/cfg/conan/build_type",
+        "/cfg/cmake/CMAKE_BUILD_TYPE",
+        "/build/config",
+        "/install/config"
+    ),
+    "python": (
+        "/cfg/cmake/ARRUS_BUILD_PYTHON"
+    ),
+    "matlab": (
+        "/cfg/cmake/ARRUS_BUILD_MATLAB"
+    ),
+    "docs": (
+        "/cfg/cmake/ARRUS_BUILD_DOCS"
+    ),
+    "tests": (
+        "/cfg/cmake/ARRUS_RUN_TESTS"
+    ),
 }
 
 defaults = {
     "build_type": "Release",
+    "/cfg/cmake/generator": get_default_generator_for_current_os()
 }
-
-build_directory = "build"
-
-# W kontekście zapisane zostaną ostatnio użyte parametry
-# TODO lista parametrow powinna zostac zapisana w build_directory?
-# Bedzie to lista parametrow, ktore zostana uzyte w sytuacji, gdy inne nie zostaly przekazane
-# Mapa parametrow - precedencja:
-# parametry przekazane w linii komend
-# parametry zapisane w kontekscie
-# parametry domyslne
-# W ramach kazdego, precedencja namespace:
-# parametry lokalne w step
-# parametry lokalne w stage
-# parametry globalne
-
-init_stages = ["cfg"]
-build_stages = ["build", "test", "install"]

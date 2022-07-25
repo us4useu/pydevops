@@ -116,11 +116,11 @@ the parameter to the above path, i.e.:
 /stage/step/abc
 ```
 
-Note: there is one exception to the above rule -- it is also possible to address a step from a single-step stage using the following shortcut:
-```
-/stage/abc
-```
-That is, you can skip the step name.
+Note: there are a couple of exception to the above rule:
+- it is also possible to address a step from a single-step stage using the following shortcut: `/stage/abc`
+  That is, you can skip the step name.
+- if you are running only a single stage (i.e. `--stage` contains description) it is sufficient to use 
+  `step/abc`; in addition, if that stage consists of a single step, you can skip step name, i.e. `abc`.
 
 On the other side, The step implementation will be able to access the parameter
 `abc` simply by using e.g. `ctx.get_parameter("abc")`.
