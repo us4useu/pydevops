@@ -95,6 +95,8 @@ def to_args_string(args_dict: dict):
     result = []
     for k, v in args_dict.items():
         if isinstance(v, Iterable) and not isinstance(v, str):
+            if len(v) == 0:
+                continue
             v = " ".join(v)
         elif isinstance(v, bool):
             if v:
@@ -203,7 +205,6 @@ def main():
         logger.info(f"Using pydevops environment stored "
                     f"in {build_dir}/pydevops.cfg")
     saved_context = SavedContext(version=__version__, env=env, options=options)
-    save_context(build_dir, saved_context)
 
     if saved_context.env.is_local:
         # Proceed with execution
@@ -218,6 +219,7 @@ def main():
             logger.info(f"Running build steps: {build_stages}")
             build_process = Process(cfg.stages, build_stages, ctx=context)
             build_process.execute()
+        save_context(build_dir, saved_context)
     else:
         # Now we are running pydevops on a local machine and executing pipeline
         # on remote machine.
@@ -225,6 +227,8 @@ def main():
         # to appropriate settings for remote machine.
         client = None
         remote_args = vars(args)
+        remote_src_dir = remote_args["src_dir"]
+        remote_build_dir = remote_args["build_dir"]
         local_src_dir = remote_args.pop("local_src_dir")
         local_build_dir = remote_args.pop("local_build_dir")
 
@@ -232,11 +236,13 @@ def main():
             # Remote host.
             # Move the execution to the remote host,
             # so on the remote host we would like to have
-            remote_args["host"] = "local"
+            remote_args["host"] = "localhost"
             remote_args = to_args_string(remote_args)
             client = SshClient(address=saved_context.env.host)
+            client.cp(local_src_dir, remote_src_dir)
+            client.sh(f"pydevops {remote_args}")
+            saved_context(build_dir, saved_context)
         elif saved_context.env.docker is not None:
-            # pydevops --docker 'name::arrus; build:: -f ./docker/build/Dockerfile; run:: -v /home/us4us/src/arrus:/src/arrus -v releases:/releases' --local_dir /home/us4us/src/arrus --src_dir /src/arrus --build_dir /src/arrus/build
             # Remove docker attribute (now we will execute commands in the
             # docker container).
             remote_args.pop("docker")
@@ -248,8 +254,8 @@ def main():
             env = dataclasses.replace(env, docker=client.params)
             saved_context = SavedContext(version=__version__, env=env,
                                      options=options)
-            save_context(build_dir, saved_context)
             client.sh(f"pydevops {remote_args}")
+            save_context(build_dir, saved_context)
 
 
 if __name__ == "__main__":
