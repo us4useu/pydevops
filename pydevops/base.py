@@ -149,8 +149,8 @@ class Context:
         """
         return self.options.copy()
 
-    def sh(self, cmd: str):
-        return self.cmd_exec.run(cmd)
+    def sh(self, *args, **kwargs):
+        return self.cmd_exec.run(*args, **kwargs)
 
     @property
     def is_local(self):
@@ -210,7 +210,6 @@ class Process:
             try:
                 # Create a wrapper for the context, so the step sees only its
                 # options.
-                print(self.ctx.options)
                 step_context = self.ctx.step_view(instance.name)
                 self.logger.debug(f"With options: {step_context.options}")
                 instance.execute(step_context)

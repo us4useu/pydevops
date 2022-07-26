@@ -10,6 +10,7 @@ import shutil
 @dataclass(frozen=True)
 class CommandResult:
     return_code: int
+    stdout: str
 
 
 def rmdir(path: str):
@@ -38,6 +39,10 @@ def mkdir(path: str, exist_ok=False):
     os.makedirs(path, exist_ok=exist_ok)
 
 
+def sanitize_output(stream):
+    return stream.decode("UTF-8").strip()
+
+
 class Shell:
     """
     A current instance of shell prompt (including all the environment
@@ -48,15 +53,28 @@ class Shell:
     def __init__(self):
         self.logger = get_logger(f"{type(self).__name__}_{id(self)}")
 
-    def run(self, cmd: str) -> CommandResult:
+    def run(self, cmd: str, capture_stdout=False, env_extend:dict=None) \
+            -> CommandResult:
         self.logger.debug(f"Executing command: {cmd}")
         cmd_tokens = shlex.split(cmd)
         kwargs = {
             "args": cmd_tokens,
             "check": True
         }
+        if capture_stdout:
+            kwargs["stdout"] = subprocess.PIPE
+            kwargs["stderr"] = subprocess.STDOUT
+
+        if env_extend is not None:
+            self.logger.debug(f"With additional env variables: {env_extend}")
+            parent_env = os.environ
+            env = {**parent_env, **env_extend}
+            kwargs["env"] = env
         result = subprocess.run(**kwargs)
-        return CommandResult(return_code=result.returncode)
+        stdout = ""
+        if capture_stdout:
+            stdout = sanitize_output(result.stdout)
+        return CommandResult(return_code=result.returncode, stdout=stdout)
 
     def mkdir(self, path: str, exist_ok=False):
         self.logger.debug(f"Creating directory: {path}")

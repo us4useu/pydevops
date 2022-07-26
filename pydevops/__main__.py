@@ -1,14 +1,16 @@
 import argparse
+import dataclasses
 import importlib
 import logging
 import pathlib
 import sys
 import os.path
 from collections import defaultdict
+from collections.abc import Iterable
 from typing import Tuple
-from pydevops.utils import get_logger
 import pickle
 
+from pydevops.utils import get_logger
 from pydevops.base import (
     SavedContext,
     Context,
@@ -18,6 +20,8 @@ from pydevops.base import (
 )
 import pydevops.sh as sh
 from pydevops.version import __version__
+from pydevops.docker import DockerClient
+from pydevops.ssh import SshClient
 
 
 logger = get_logger("__main__")
@@ -87,6 +91,34 @@ def get_stages_to_execute(args, cfg, saved_context):
         return init_stages, build_stages
 
 
+def to_args_string(args_dict: dict):
+    result = []
+    for k, v in args_dict.items():
+        if isinstance(v, Iterable) and not isinstance(v, str):
+            v = " ".join(v)
+        elif isinstance(v, bool):
+            if v:
+                # Put an empty flag
+                v = ""
+            else:
+                # Skip this parameter: we use only flags here
+                continue
+        result.append(f"--{k} {v}")
+    return " ".join(result)
+
+
+def cleanup(src_dir, build_dir, args):
+    docker = args.docker
+    host = args.host
+    logger.info(f"Recreating pydevops environment in {build_dir}")
+    sh.rmdir(build_dir)
+    sh.mkdir(build_dir)
+    # create new environment from the input args, set it to saved_context
+    env = Environment(host=args.host, docker=docker, src_dir=src_dir,
+                      build_dir=build_dir)
+    return env
+
+
 def main():
     parser = argparse.ArgumentParser(description="PyDevOps tools")
     parser.add_argument("--stage", dest="stage",
@@ -106,17 +138,25 @@ def main():
                              ":port_number is optional. ",
                         type=str, required=False, default="localhost")
     parser.add_argument("--docker", dest="docker",
-                        help="Docker image tag (img::image_tag), "
+                        help="Docker image tag (img:image_tag), "
                              "container name/id "
-                             "(container::container_name/id) "
-                             "or the path to the Dockerfile (file::path). "
+                             "(container:container_name/id) "
+                             "or the path to the Dockerfile (file:path). "
                              "By default (None) docker will be not used",
                         type=str, required=False, default=None)
+    parser.add_argument("--local_src_dir", dest="local_src_dir",
+                        help="Path to the source host source directory.",
+                        type=str, required=False, default=None)
+    parser.add_argument("--local_build_dir", dest="local_build_dir",
+                        help="Path to the source host build directory."
+                             "This directory will be used to keep the "
+                             "pydevops.cfg file for the local machine.",
+                        type=str, required=False, default=None)
     parser.add_argument("--src_dir", dest="src_dir",
-                        help="Path to the source directory.",
+                        help="Path to the target host source directory.",
                         type=str, required=False, default=".")
     parser.add_argument("--build_dir", dest="build_dir",
-                        help="Path to the build directory.",
+                        help="Path to the target host build directory.",
                         type=str, required=False, default="./build")
     parser.add_argument("--options", dest="options",
                         help="A list of options that should be passed "
@@ -131,16 +171,14 @@ def main():
     args = parser.parse_args()
     host = args.host
     docker = args.docker
-    src_dir = args.src_dir
-    build_dir = args.build_dir
+    src_dir = args.local_src_dir if args.local_src_dir else args.src_dir
+    build_dir = args.local_build_dir if args.local_build_dir else args.build_dir
     env_from_params = Environment(host=host, docker=docker, src_dir=src_dir,
                                   build_dir=build_dir)
     cfg = load_cfg(os.path.join(src_dir, CFG_NAME))
     saved_context = read_context(build_dir)
 
     init_stages, build_stages = get_stages_to_execute(args, cfg, saved_context)
-    print(init_stages)
-    print(build_stages)
 
     # Establish current environment.
     options = saved_context.options
@@ -158,12 +196,7 @@ def main():
             or not saved_context.is_initialized  # Env not yet initialized.
             or not env.__eq__(env_from_params)  # Some change in the env.
     ):
-        logger.info(f"Recreating pydevops environment in {build_dir}")
-        sh.rmdir(build_dir)
-        sh.mkdir(build_dir)
-        # create new environment from the input args, set it to saved_context
-        env = Environment(host=host, docker=docker, src_dir=src_dir,
-                          build_dir=build_dir)
+        env = cleanup(src_dir, build_dir, args)
         # Run all init stages, regardless of the input request.
         init_stages = cfg.init_stages
     else:
@@ -186,16 +219,37 @@ def main():
             build_process = Process(cfg.stages, build_stages, ctx=context)
             build_process.execute()
     else:
-        # TODO reconstruct cmd
-        # note: --host should be replaced to localhost
-        # note: --docker should be removed
-        # create appropriate environment
-        # if the directory in the remote
-        # 1. start remote process (needed for docker) if necessary
-        # 2. checkout
-        # 2.
-        # TODO
-        pass
+        # Now we are running pydevops on a local machine and executing pipeline
+        # on remote machine.
+        # Init connection with the remote machine and translate all the options
+        # to appropriate settings for remote machine.
+        client = None
+        remote_args = vars(args)
+        local_src_dir = remote_args.pop("local_src_dir")
+        local_build_dir = remote_args.pop("local_build_dir")
+
+        if saved_context.env.host != "localhost":
+            # Remote host.
+            # Move the execution to the remote host,
+            # so on the remote host we would like to have
+            remote_args["host"] = "local"
+            remote_args = to_args_string(remote_args)
+            client = SshClient(address=saved_context.env.host)
+        elif saved_context.env.docker is not None:
+            # pydevops --docker 'name::arrus; build:: -f ./docker/build/Dockerfile; run:: -v /home/us4us/src/arrus:/src/arrus -v releases:/releases' --local_dir /home/us4us/src/arrus --src_dir /src/arrus --build_dir /src/arrus/build
+            # Remove docker attribute (now we will execute commands in the
+            # docker container).
+            remote_args.pop("docker")
+            remote_args = to_args_string(remote_args)
+            client = DockerClient(parameters=saved_context.env.docker)
+            # Update local SavedContext:
+            # in the next try not to build new image, but simply run the
+            # existing.
+            env = dataclasses.replace(env, docker=client.params)
+            saved_context = SavedContext(version=__version__, env=env,
+                                     options=options)
+            save_context(build_dir, saved_context)
+            client.sh(f"pydevops {remote_args}")
 
 
 if __name__ == "__main__":
