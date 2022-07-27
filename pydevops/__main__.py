@@ -94,6 +94,9 @@ def get_stages_to_execute(args, cfg, saved_context):
 def to_args_string(args_dict: dict):
     result = []
     for k, v in args_dict.items():
+        if v is None:
+            # Ignore None values
+            continue
         if isinstance(v, Iterable) and not isinstance(v, str):
             if len(v) == 0:
                 continue
@@ -215,11 +218,12 @@ def main():
             init_process = Process(cfg.stages, init_stages, ctx=context)
             init_process.execute()
 
+        save_context(build_dir, saved_context)
+
         if len(build_stages) > 0:
             logger.info(f"Running build steps: {build_stages}")
             build_process = Process(cfg.stages, build_stages, ctx=context)
             build_process.execute()
-        save_context(build_dir, saved_context)
     else:
         # Now we are running pydevops on a local machine and executing pipeline
         # on remote machine.
@@ -239,9 +243,11 @@ def main():
             remote_args["host"] = "localhost"
             remote_args = to_args_string(remote_args)
             client = SshClient(address=saved_context.env.host)
-            client.cp(local_src_dir, remote_src_dir)
+            if args.clean:
+                client.rmdir(remote_src_dir)
+                client.cp_to_remote(local_src_dir, remote_src_dir)
             client.sh(f"pydevops {remote_args}")
-            saved_context(build_dir, saved_context)
+            save_context(build_dir, saved_context)
         elif saved_context.env.docker is not None:
             # Remove docker attribute (now we will execute commands in the
             # docker container).
