@@ -152,6 +152,12 @@ class Context:
     def sh(self, *args, **kwargs):
         return self.cmd_exec.run(*args, **kwargs)
 
+    def rmdir(self, path: str):
+        return self.cmd_exec.rmdir(path)
+
+    def mkdir(self, path: str):
+        return self.cmd_exec.mkdir(path)
+
     @property
     def is_local(self):
         return False
