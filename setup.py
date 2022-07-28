@@ -28,5 +28,8 @@ setuptools.setup(
         "console_scripts": [
             "pydevops = pydevops:main"
         ]
-    }
+    },
+    install_requires=[
+        "idna"
+    ],
 )

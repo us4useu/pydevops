@@ -2,9 +2,10 @@ import os
 import pathlib
 import platform
 import shutil
+import re
 
 import requests
-import date
+from datetime import date
 import platform
 import tempfile
 import glob
@@ -64,7 +65,7 @@ class PublishDocs(Step):
                 shutil.copytree(dst, src)
             os.chdir(repository_name)
             ctx.sh("git add -A")
-            commit_msg = f"Updated docs: {commit_msg} (host: {platform.node()})"
+            commit_msg = f"Updated docs: {commit_msg}"
             result = git_commit(commit_msg)
             if result == 'ntc':
                 print("Nothing to commit")
@@ -114,32 +115,17 @@ class PublishReleases(Step):
     :param token: Github Personal Access Token (PAT)
     :param description: description of the release.
     :param repository: repository name, e.g. us4useu/arrus
-    :param append_stage_description: if set to true, the provided description
-      will be extended with signature "stage_name: date, host"
-    :param is_zip: whether all the artifacts should be zipped to a single zip
-      (with the dst_artifact name), all whether each artifact should be
-      uploaded separately.
     """
     def __init__(self, name):
         super().__init__(name)
 
-    def execute(self, context: Context):
+    def execute(self, ctx: Context):
         release_name = ctx.get_option("release_name")
         src_artifact = ctx.get_option("src_artifact")
-        dst_artifact = ctx.get_option("dst_artifact")
+        dst_artifact = ctx.get_option_default("dst_artifact", None)
         repository_name = ctx.get_option("repository_name")
         token = ctx.get_option("token")
         description = ctx.get_option_default("description", "")
-        append_stage_description = ctx.get_option_default("append_stage_description", False)
-
-        if append_stage_description:
-            current_date = date.today().strftime("%d-%m-%Y")
-            hostname = platform.node()
-            suffix = f"stage {self.get_stage_name()}: {current_date} {hostname}"
-            if len(description) > 0:
-                suffix = f" {suffix}"
-            description = f"{description}{suffix}"
-
         is_prerelease = not bool(re.match("^v[0-9]+\.[0-9]+\.[0-9]+$", release_name))
 
         release_id = self.create_release(
@@ -158,6 +144,7 @@ class PublishReleases(Step):
                 self.publish_asset(
                     repository_name=repository_name,
                     asset_path=artifact,
+                    release_id=release_id,
                     token=token)
 
     def create_release(self, repository_name, release, body, token, prerelease):
@@ -207,6 +194,7 @@ class PublishReleases(Step):
                     repository_name=repository_name,
                     release_id=release_id,
                     release_tag=release_tag,
+                    release_name=release,
                     body=new_body,
                     target_commitish=target_commitish,
                     prerelease=prerelease,
@@ -223,24 +211,25 @@ class PublishReleases(Step):
     def get_release_by_tag(self, repository_name, release_tag, token):
         print("Getting release by tag")
         return requests.get(
-            url=f"{get_api_url(repository_name)}/tags/{release_tag}",
+            url=f"{self.get_api_url(repository_name)}/tags/{release_tag}",
             headers={
                 "Authorization": f"token {token}"
             }
         )
 
-    def edit_release(self, repository_name, release_id, release_tag, body,
+    def edit_release(self, repository_name, release_id, release_name,
+                     release_tag, body,
                      target_commitish, prerelease, token):
         print("Editing release")
         return requests.patch(
-            url=f"{get_api_url(repository_name)}/{str(release_id)}",
+            url=f"{self.get_api_url(repository_name)}/{str(release_id)}",
             headers={
                 "Authorization": f"token {token}"
             },
             json={
                 "tag_name": release_tag,
                 "target_commitish": target_commitish,
-                "name": release,
+                "name": release_name,
                 "body": body,
                 "draft": False,
                 "prerelease": prerelease
@@ -255,21 +244,43 @@ class PublishReleases(Step):
             output_files.extend(glob.glob(pattern))
 
         # Copy artifacts to the temporary workdir.
-        output_files = self.copy_files(output_files)
+        output_files = self.copy_files(output_files, workdir)
 
         is_all_regular_files = all(pathlib.Path(file).is_file()
                                    for file in output_files)
 
-        if len(output_files) == 1 and is_all_regular_files:
-            # Rename to the target name.
-            self.rename_file_in_dir(output_files[0], os.path.join(workdir, dst_artifact))
-        elif is_all_regular_files:
-            # Don't rename the files
-            pass
+        if dst_artifact is not None:
+            dst_path = os.path.join(workdir, dst_artifact)
         else:
-            # Rename -> zip to a single .zip file.
-            dst_filename = os.path.join(workdir, dst_artifact)
-            output_files = [self.zip_files(output_files, dst_filename)]
+            dst_path = None
+
+        if len(output_files) == 1 and is_all_regular_files:
+            # A single, regular file.
+            # Simply, change the name to the target name.
+            if dst_path is not None:
+                os.rename(output_files[0], dst_path)
+                output_files = [dst_path]
+        elif is_all_regular_files:
+            # If we only have regular files, simply publish all of them,
+            # with their original names.
+            pass
+        elif len(output_files) == 1 and not is_all_regular_files:
+            # A single directory: zip it in the work dir and rename.
+            os.rename(output_files[0], dst_path)
+            zip_name = self.zip_files(dst_path, dst_path)
+            print(dst_path)
+            print(zip_name)
+            input("")
+            output_files = [zip_name]
+        else:
+            # Multiple files and/or directories.
+            # First, move all the workdir content to new directory 'archive'.
+            archive_dir = pathlib.Path(workdir) / "archive"
+            archive_dir.mkdir(parents=True)
+            for file in output_files:
+                shutil.move(file, str(archive_dir))
+            # Zip the "archive" directory.
+            output_files = [self.zip_files(archive_dir, dst_path)]
         return output_files
 
     def copy_files(self, files, target_dir):
@@ -277,7 +288,11 @@ class PublishReleases(Step):
         for file in files:
             input_path = pathlib.Path(file)
             if input_path.is_dir():
-                result.append(shutil.copytree(str(input_path), target_dir))
+                dst = os.path.join(target_dir, input_path.name)
+                result.append(shutil.copytree(str(input_path), dst))
+                print(input_path)
+                print(target_dir)
+                input("test")
             else:
                 result.append(shutil.copy(str(input_path), target_dir))
         return result
@@ -285,13 +300,12 @@ class PublishReleases(Step):
     def rename_file(self, src, dst):
         os.rename(src, dst)
 
-    def zip_files(self, workdir, dst_zip_file):
-        return shutil.make_archive(dst_zip_file, "zip", root_dir=workdir)
+    def zip_files(self, root_dir, dst_zip_file):
+        return shutil.make_archive(dst_zip_file, "zip", root_dir=root_dir)
 
-    def publish_asset(self, repository_name, asset_path, token):
+    def publish_asset(self, repository_name, asset_path, release_id, token):
         # Get current assets.
         asset_name = pathlib.Path(asset_path).name
-
         r = self.get_assets(repository_name, release_id, token)
         r.raise_for_status()
         current_assets = r.json()
@@ -299,11 +313,11 @@ class PublishReleases(Step):
                            if asset["name"] == asset_name]
         if len(existing_assets) > 0:
             raise RuntimeError(f"Release {release_id} contains more than "
-                               f"one asset with name: {package_name}")
+                               f"one asset with name: {asset_name}")
         with open(asset_path, "rb") as f:
             data = f.read()
             r = self.upload_asset(repository_name, release_id,
-                                  package_name, token, data)
+                                  asset_name, token, data)
             r.raise_for_status()
 
     def get_api_url(self, repository_name):
@@ -315,15 +329,16 @@ class PublishReleases(Step):
     def get_assets(self, repository_name, release_id, token):
         print("Getting assets")
         return requests.get(
-            url=f"{get_api_url(repository_name)}/{str(release_id)}/assets",
+            url=f"{self.get_api_url(repository_name)}/{str(release_id)}/assets",
             headers={
                 "Authorization": f"token {token}"
             }
         )
+    
     def delete_asset(self, repository_name, asset_id, token):
         print("Deleting asset")
         return requests.delete(
-            url=get_api_url(repository_name)+"/assets/"+str(asset_id),
+            url=f"{self.get_api_url(repository_name)}/assets/{str(asset_id)}",
             headers={
                 'Authorization': f"token {token}"
             },
@@ -333,7 +348,7 @@ class PublishReleases(Step):
                      file_to_upload):
         print("Uploading asset")
         return requests.post(
-            url=f"{get_uploads_url(repository_name)}/{str(release_id)}/assets?name={asset_name}",
+            url=f"{self.get_uploads_url(repository_name)}/{str(release_id)}/assets?name={asset_name}",
             headers={
                 "Content-Type": "application/gzip",
                 "Authorization": f"token {token}"
