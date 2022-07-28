@@ -1,10 +1,2 @@
-
-
-def get_processor(steps, *args):
-    """Factory function for new process."""
-    pass
-
-
-
-
-
+from pydevops.version import __version__
+from pydevops.__main__ import main

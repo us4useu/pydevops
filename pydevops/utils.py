@@ -4,6 +4,8 @@ import inspect
 LOGGING_FORMAT = "[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
 ERROR_FORMAT = LOGGING_FORMAT + " (%(filename)s:%(lineno)d)"
 
+LOGGING_LEVEL=logging.DEBUG
+
 
 # Credits:
 # https://stackoverflow.com/questions/384076/
@@ -35,7 +37,7 @@ class LoggerFactory:
         self.output_file = output_file
 
     # Logging
-    def get_logger(self, component, level=logging.DEBUG):
+    def get_logger(self, component):
         if inspect.isclass(component):
             class_module = component.__module__
             class_name = component.__name__
@@ -43,22 +45,11 @@ class LoggerFactory:
         else:
             # `component` is the name of commponent as a string
             logger = logging.getLogger(component)
-        logger.setLevel(level)
-        file_handler = None
-        if self.output_file is not None:
-            file_handler = logging.FileHandler(self.output_file)
-            file_handler.setLevel(level)
-
+        logger.setLevel(LOGGING_LEVEL)
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
-        formatter = logging.Formatter(LOGGING_FORMAT)
+        console_handler.setLevel(LOGGING_LEVEL)
         colored_text_formatter = ColoredTxtFormatter()
-        if self.output_file is not None:
-            file_handler.setFormatter(formatter)
         console_handler.setFormatter(colored_text_formatter)
-        # add the handlers to the logger
-        if self.output_file is not None:
-            logger.addHandler(file_handler)
         logger.addHandler(console_handler)
         return logger
 
