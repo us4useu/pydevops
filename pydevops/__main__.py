@@ -181,6 +181,9 @@ def main():
     env_from_params = Environment(host=host, docker=docker, src_dir=src_dir,
                                   build_dir=build_dir)
     cfg = load_cfg(os.path.join(src_dir, CFG_NAME))
+    if args.clean:
+        env = cleanup(src_dir, build_dir, args)
+
     saved_context = read_context(build_dir)
 
     init_stages, build_stages = get_stages_to_execute(args, cfg, saved_context)
@@ -196,8 +199,7 @@ def main():
     # Check if the current environment exists and is conformant with the input
     # arguments and pydevops version. If it's not, cleanup and create new
     # environment.
-    if (args.clean # Explicit clean
-            or saved_context.version != __version__  # A different version of pydevops
+    if (saved_context.version != __version__  # A different version of pydevops
             or not saved_context.is_initialized  # Env not yet initialized.
             or not env.__eq__(env_from_params)  # Some change in the env.
     ):

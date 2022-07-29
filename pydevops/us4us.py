@@ -9,14 +9,20 @@ from datetime import date
 import platform
 import tempfile
 import glob
+import subprocess
 
 from pydevops.base import Step, Context
-from pydevops.sh import Shell
+import pydevops.sh
+
+
+def _is_prerelease(release_name):
+    return not bool(re.match("^v[0-9]+\.[0-9]+\.[0-9]+$", release_name))
 
 
 class PublishDocs(Step):
     """
     Publishes docs in a given repository.
+
     :param install_dir: path to the directory with release artifacts. Assumes
       that the documentation is located in the docs/html subdirectory.
     """
@@ -24,26 +30,12 @@ class PublishDocs(Step):
     def __init__(self, name):
         super().__init__(name)
 
-    def execute(self, context: Context):
+    def execute(self, ctx: Context):
         install_dir = ctx.get_option("install_dir")
         repository = ctx.get_option("repository")
         commit_msg = ctx.get_option_default("commit_msg", "")
         version = ctx.get_param("version")
-        self.publish(context, repository, release_dir, commit_title, version)
-
-    def git_commit(self, commit_msg: str):
-        params = ["git", "commit", "-m", "'"+msg+"'"]
-        print("Calling: %s"%(" ".join(params)))
-        try:
-            out = subprocess.check_output(params)
-        except subprocess.CalledProcessError as e:
-            out = str(e.output)
-            if "nothing to commit" in out:
-                return "ntc"
-            else:
-                return "fail"
-        print("Commit output: %s" % out)
-        return "ok"
+        self.publish(ctx, repository, install_dir, commit_msg, version)
 
     def publish(self, ctx, repository, install_dir, commit_msg, version):
         cwd = os.getcwd()
@@ -61,22 +53,122 @@ class PublishDocs(Step):
             # Copy documentation for each language.
             for d in language_doc_dirs:
                 dst = os.path.join(docs_dir, d)
-                src = os.path.join(release_dir, d)
+                src = os.path.join(install_dir, d)
                 shutil.copytree(dst, src)
             os.chdir(repository_name)
             ctx.sh("git add -A")
             commit_msg = f"Updated docs: {commit_msg}"
-            result = git_commit(commit_msg)
+            result = self.git_commit(commit_msg)
             if result == 'ntc':
                 print("Nothing to commit")
                 return
             elif result != "ok":
-                raise ValueError("Something wrong when commiting the changes,"
+                raise ValueError("Something wrong when committing the changes,"
                                  "check the errors in log.")
             ctx.sh(f"git push {repository}")
         finally:
             os.chdir(cwd)
             shutil.rmtree(repository_name, ignore_errors=True)
+
+    def git_commit(self, msg: str):
+        params = ["git", "commit", "-m", "'"+msg+"'"]
+        print("Calling: %s"%(" ".join(params)))
+        try:
+            out = subprocess.check_output(params)
+        except subprocess.CalledProcessError as e:
+            out = str(e.output)
+            if "nothing to commit" in out:
+                return "ntc"
+            else:
+                return "fail"
+        print("Commit output: %s" % out)
+        return "ok"
+
+
+class Package(Step):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def execute(self, ctx: Context):
+        release_name = ctx.get_option("release_name")
+        src_artifact = ctx.get_option("src_artifact")
+        dst_dir = ctx.get_option("dst_dir")
+        dst_artifact = ctx.get_option_default("dst_artifact", "__same__")
+        prerelease = _is_prerelease(release_name)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifacts = self.prepare_artifacts(
+                src_artifact=src_artifact,
+                dst_artifact=dst_artifact,
+                workdir=temp_dir,
+                prerelease=prerelease
+            )
+            # Copy artifacts from the temporary directory to the dst_dir.
+            pydevops.sh.mkdir(dst_dir, exist_ok=True)
+            self.copy_files(artifacts, dst_dir)
+
+    def zip_files(self, root_dir, dst_zip_file):
+        return shutil.make_archive(dst_zip_file, "zip", root_dir=root_dir)
+
+    def prepare_artifacts(self, src_artifact: str, dst_artifact :str,
+                          workdir: str, prerelease: bool):
+        src_artifact = src_artifact.strip().strip(";")
+        dst_artifact = dst_artifact.strip()
+        patterns = src_artifact.split(";")
+        output_files = []
+        for pattern in patterns:
+            output_files.extend(glob.glob(pattern))
+
+        # Copy input artifacts to the temporary workdir.
+        output_files = self.copy_files(output_files, workdir)
+
+        is_all_regular_files = all(pathlib.Path(file).is_file()
+                                   for file in output_files)
+
+        if dst_artifact != "__same__":
+            if prerelease:
+                today = date.today().strftime('%Y%m%d')
+                dst_artifact = f"{dst_artifact}-{today}"
+            dst_path = os.path.join(workdir, dst_artifact)
+        else:
+            dst_path = None
+
+        if len(output_files) == 1 and is_all_regular_files:
+            # A single, regular file.
+            # Simply, change the name to the target name.
+            if dst_path is not None:
+                os.rename(output_files[0], dst_path)
+                output_files = [dst_path]
+        elif is_all_regular_files:
+            # If we only have regular files, simply publish all of them,
+            # with their original names.
+            pass
+        elif len(output_files) == 1 and not is_all_regular_files:
+            # A single directory: zip it in the work dir and rename.
+            os.rename(output_files[0], dst_path)
+            zip_name = self.zip_files(dst_path, dst_path)
+            output_files = [zip_name]
+        else:
+            # Multiple files and/or directories.
+            # First, move all the workdir content to new directory 'archive'.
+            archive_dir = pathlib.Path(workdir) / "archive"
+            archive_dir.mkdir(parents=True)
+            for file in output_files:
+                shutil.move(file, str(archive_dir))
+            # Zip the "archive" directory.
+            output_files = [self.zip_files(archive_dir, dst_path)]
+        return output_files
+
+    def copy_files(self, files, target_dir):
+        result = []
+        for file in files:
+            input_path = pathlib.Path(file)
+            if input_path.is_dir():
+                dst = os.path.join(target_dir, input_path.name)
+                result.append(shutil.copytree(str(input_path), dst))
+            else:
+                result.append(shutil.copy(str(input_path), target_dir))
+        return result
 
 
 class PublishReleases(Step):
@@ -126,26 +218,28 @@ class PublishReleases(Step):
         repository_name = ctx.get_option("repository_name")
         token = ctx.get_option("token")
         description = ctx.get_option_default("description", "")
-        is_prerelease = not bool(re.match("^v[0-9]+\.[0-9]+\.[0-9]+$", release_name))
-
+        is_prerelease = _is_prerelease(release_name)
         release_id = self.create_release(
             repository_name=repository_name,
             release=release_name,
             body=description,
             prerelease=is_prerelease,
             token=token)
-        with tempfile.TemporaryDirectory() as tempdirname:
-            artifacts = self.prepare_artifacts(
-                src_artifact=src_artifact,
-                dst_artifact=dst_artifact,
-                workdir=tempdirname,
-            )
-            for artifact in artifacts:
-                self.publish_asset(
-                    repository_name=repository_name,
-                    asset_path=artifact,
-                    release_id=release_id,
-                    token=token)
+        artifacts = self.get_artifacts(src_artifact)
+        for artifact in artifacts:
+            self.publish_asset(
+                repository_name=repository_name,
+                asset_path=artifact,
+                release_id=release_id,
+                token=token)
+
+    def get_artifacts(self, src_artifact):
+        src_artifact = src_artifact.strip().strip(";")
+        patterns = src_artifact.split(";")
+        output_files = []
+        for pattern in patterns:
+            output_files.extend(glob.glob(pattern))
+        return output_files
 
     def create_release(self, repository_name, release, body, token, prerelease):
         """
@@ -235,73 +329,6 @@ class PublishReleases(Step):
                 "prerelease": prerelease
             }
         )
-
-    def prepare_artifacts(self, src_artifact: str, dst_artifact :str, workdir: str):
-        src_artifact = src_artifact.strip().strip(";")
-        patterns = src_artifact.split(";")
-        output_files = []
-        for pattern in patterns:
-            output_files.extend(glob.glob(pattern))
-
-        # Copy artifacts to the temporary workdir.
-        output_files = self.copy_files(output_files, workdir)
-
-        is_all_regular_files = all(pathlib.Path(file).is_file()
-                                   for file in output_files)
-
-        if dst_artifact is not None:
-            dst_path = os.path.join(workdir, dst_artifact)
-        else:
-            dst_path = None
-
-        if len(output_files) == 1 and is_all_regular_files:
-            # A single, regular file.
-            # Simply, change the name to the target name.
-            if dst_path is not None:
-                os.rename(output_files[0], dst_path)
-                output_files = [dst_path]
-        elif is_all_regular_files:
-            # If we only have regular files, simply publish all of them,
-            # with their original names.
-            pass
-        elif len(output_files) == 1 and not is_all_regular_files:
-            # A single directory: zip it in the work dir and rename.
-            os.rename(output_files[0], dst_path)
-            zip_name = self.zip_files(dst_path, dst_path)
-            print(dst_path)
-            print(zip_name)
-            input("")
-            output_files = [zip_name]
-        else:
-            # Multiple files and/or directories.
-            # First, move all the workdir content to new directory 'archive'.
-            archive_dir = pathlib.Path(workdir) / "archive"
-            archive_dir.mkdir(parents=True)
-            for file in output_files:
-                shutil.move(file, str(archive_dir))
-            # Zip the "archive" directory.
-            output_files = [self.zip_files(archive_dir, dst_path)]
-        return output_files
-
-    def copy_files(self, files, target_dir):
-        result = []
-        for file in files:
-            input_path = pathlib.Path(file)
-            if input_path.is_dir():
-                dst = os.path.join(target_dir, input_path.name)
-                result.append(shutil.copytree(str(input_path), dst))
-                print(input_path)
-                print(target_dir)
-                input("test")
-            else:
-                result.append(shutil.copy(str(input_path), target_dir))
-        return result
-
-    def rename_file(self, src, dst):
-        os.rename(src, dst)
-
-    def zip_files(self, root_dir, dst_zip_file):
-        return shutil.make_archive(dst_zip_file, "zip", root_dir=root_dir)
 
     def publish_asset(self, repository_name, asset_path, release_id, token):
         # Get current assets.
