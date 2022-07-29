@@ -40,7 +40,7 @@ class DockerClient:
         if self.image_id is None:
             raise ValueError("Build docker image first.")
         run_params = self.parameters.get("run", "")
-        self.cmd_exec.run(f"docker run --rm {run_params} {self.image_id} -l -c \" pip3 install -e /pydevops && {cmd}\"")
+        self.cmd_exec.run(f"docker run --rm {run_params} {self.image_id} -l -c \"{cmd}\"")
 
     @property
     def params(self):
