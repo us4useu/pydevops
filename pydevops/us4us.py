@@ -34,7 +34,7 @@ class PublishDocs(Step):
         install_dir = ctx.get_option("install_dir")
         repository = ctx.get_option("repository")
         commit_msg = ctx.get_option_default("commit_msg", "")
-        version = ctx.get_param("version")
+        version = ctx.get_option("version")
         self.publish(ctx, repository, install_dir, commit_msg, version)
 
     def publish(self, ctx, repository, install_dir, commit_msg, version):
@@ -42,30 +42,31 @@ class PublishDocs(Step):
         _, repository_name = os.path.split(repository)
         repository_name, _ = repository_name.split(".")
         try:
-            ctx.rmdir(repository_name)
-            ctx.sh(f"git clone {repository}")
-            version = version.strip()
-            version_dir = os.path.join(repository_name, "releases", version)
-            docs_dir = os.path.join(install_dir, "docs", "html")
-            ctx.rmdir(version_dir)
-            ctx.mkdir(version_dir)
-            language_doc_dirs = os.listdir(docs_dir)
-            # Copy documentation for each language.
-            for d in language_doc_dirs:
-                dst = os.path.join(docs_dir, d)
-                src = os.path.join(install_dir, d)
-                shutil.copytree(dst, src)
-            os.chdir(repository_name)
-            ctx.sh("git add -A")
-            commit_msg = f"Updated docs: {commit_msg}"
-            result = self.git_commit(commit_msg)
-            if result == 'ntc':
-                print("Nothing to commit")
-                return
-            elif result != "ok":
-                raise ValueError("Something wrong when committing the changes,"
+            with tempfile.TemporaryDirectory() as temp_dir:
+                os.chdir(temp_dir)
+                ctx.sh(f"git clone {repository}")
+                version = version.strip()
+                version_dir = os.path.join(repository_name, "releases", version)
+                docs_dir = os.path.join(install_dir, "docs", "html")
+                ctx.rmdir(version_dir)
+                ctx.mkdir(version_dir)
+                language_doc_dirs = os.listdir(docs_dir)
+                # Copy documentation for each language.
+                for d in language_doc_dirs:
+                    dst = os.path.join(version_dir, d)
+                    src = os.path.join(docs_dir, d)
+                    shutil.copytree(src, dst)
+                os.chdir(repository_name)
+                ctx.sh("git add -A")
+                commit_msg = f"Updated docs: {commit_msg}"
+                result = self.git_commit(commit_msg)
+                if result == 'ntc':
+                    print("Nothing to commit")
+                    return
+                elif result != "ok":
+                    raise ValueError("Something wrong when committing the changes,"
                                  "check the errors in log.")
-            ctx.sh(f"git push {repository}")
+                ctx.sh(f"git push {repository}")
         finally:
             os.chdir(cwd)
             shutil.rmtree(repository_name, ignore_errors=True)
