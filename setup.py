@@ -30,6 +30,7 @@ setuptools.setup(
         ]
     },
     install_requires=[
-        "idna"
+        "idna",
+        "requests"
     ],
 )
