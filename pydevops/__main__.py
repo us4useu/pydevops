@@ -112,9 +112,14 @@ def to_args_string(args_dict: dict):
     return " ".join(result)
 
 
+def sanitize_remote_options(options):
+    kvs = (v.strip().split("=") for v in options)
+    kvs = [f'{k}=\\"{v}\\"' for k, v in kvs]
+    return " ".join(kvs)
+
+
 def cleanup(src_dir, build_dir, args):
     docker = args.docker
-    host = args.host
     logger.info(f"Recreating pydevops environment in {build_dir}")
     sh.rmdir(build_dir)
     sh.mkdir(build_dir)
@@ -181,34 +186,22 @@ def main():
     env_from_params = Environment(host=host, docker=docker, src_dir=src_dir,
                                   build_dir=build_dir)
     cfg = load_cfg(os.path.join(src_dir, CFG_NAME))
+    env = None
     if args.clean:
         env = cleanup(src_dir, build_dir, args)
 
     saved_context = read_context(build_dir)
-
     init_stages, build_stages = get_stages_to_execute(args, cfg, saved_context)
+    if not saved_context.is_initialized:
+        saved_context = dataclasses.replace(saved_context, env=env)
 
     # Establish current environment.
     options = saved_context.options
-
     # Read command-line options.
     # Command line options may override the context options.
     options = {**options, **parse_options(args.options)}
 
     env = saved_context.env
-    # Check if the current environment exists and is conformant with the input
-    # arguments and pydevops version. If it's not, cleanup and create new
-    # environment.
-    if (saved_context.version != __version__  # A different version of pydevops
-            or not saved_context.is_initialized  # Env not yet initialized.
-            or not env.__eq__(env_from_params)  # Some change in the env.
-    ):
-        env = cleanup(src_dir, build_dir, args)
-        # Run all init stages, regardless of the input request.
-        init_stages = cfg.init_stages
-    else:
-        logger.info(f"Using pydevops environment stored "
-                    f"in {build_dir}/pydevops.cfg")
     saved_context = SavedContext(version=__version__, env=env, options=options)
 
     if saved_context.env.is_local:
@@ -237,6 +230,11 @@ def main():
         remote_build_dir = remote_args["build_dir"]
         local_src_dir = remote_args.pop("local_src_dir")
         local_build_dir = remote_args.pop("local_build_dir")
+        if "options" in remote_args:
+            # Convert each option value to string, to avoid passing
+            # e.g. description=Build #4 test instead of 
+            # description="Build #4 test"
+            remote_args["options"] = sanitize_remote_options(remote_args["options"])
 
         if saved_context.env.host != "localhost":
             # Remote host.
