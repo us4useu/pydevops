@@ -162,19 +162,25 @@ def main():
                              "or the path to the Dockerfile (file:path). "
                              "By default (None) docker will be not used",
                         type=str, required=False, default=None)
-    parser.add_argument("--local_src_dir", dest="local_src_dir",
-                        help="Path to the source host source directory.",
+    parser.add_argument("--ssh_src_dir", dest="ssh_src_dir",
+                        help="Path to the remote host source directory.",
                         type=str, required=False, default=None)
-    parser.add_argument("--local_build_dir", dest="local_build_dir",
-                        help="Path to the source host build directory."
+    parser.add_argument("--ssh_build_dir", dest="ssh_build_dir",
+                        help="Path to the remote host build directory."
                              "This directory will be used to keep the "
                              "pydevops.cfg file for the local machine.",
                         type=str, required=False, default=None)
+    parser.add_argument("--docker_src_dir", dest="docker_src_dir",
+                        help="Path to the docker container's source directory.",
+                        type=str, required=False, default=None)
+    parser.add_argument("--docker_build_dir", dest="docker_build_dir",
+                        help="Path to the docker container's build directory.",
+                        type=str, required=False, default=None)
     parser.add_argument("--src_dir", dest="src_dir",
-                        help="Path to the target host source directory.",
+                        help="Path to the host source directory.",
                         type=str, required=False, default=".")
     parser.add_argument("--build_dir", dest="build_dir",
-                        help="Path to the target host build directory.",
+                        help="Path to the host build directory.",
                         type=str, required=False, default="./build")
     parser.add_argument("--options", dest="options",
                         help="A list of options that should be passed "
@@ -189,8 +195,8 @@ def main():
     args = parser.parse_args()
     host = args.host
     docker = args.docker
-    src_dir = args.local_src_dir if args.local_src_dir else args.src_dir
-    build_dir = args.local_build_dir if args.local_build_dir else args.build_dir
+    src_dir = args.src_dir
+    build_dir = args.build_dir
     env_from_params = Environment(host=host, docker=docker, src_dir=src_dir,
                                   build_dir=build_dir)
     cfg = load_cfg(os.path.join(src_dir, CFG_NAME))
@@ -234,10 +240,8 @@ def main():
         # to appropriate settings for remote machine.
         client = None
         remote_args = vars(args)
-        remote_src_dir = remote_args["src_dir"]
-        remote_build_dir = remote_args["build_dir"]
-        local_src_dir = remote_args.pop("local_src_dir")
-        local_build_dir = remote_args.pop("local_build_dir")
+        host_src_dir = remote_args.pop("src_dir")
+        host_build_dir = remote_args.pop("build_dir")
         if "options" in remote_args:
             # Convert each option value to string, to avoid passing
             # e.g. description=Build #4 test instead of 
@@ -246,17 +250,27 @@ def main():
 
         if saved_context.env.host != "localhost":
             # Remote host.
-            # Move the execution to the remote host,
-            # so on the remote host we would like to have
+            # Move the execution to the remote host.
+            ssh_src_dir = remote_args.pop("ssh_src_dir")
+            ssh_build_dir = remote_args.pop("ssh_build_dir")
+
+            remote_args["src_dir"] = ssh_src_dir
+            remote_args["build_dir"] = ssh_build_dir
             remote_args["host"] = "localhost"
             remote_args = to_args_string(remote_args, double_escape_str=True)
             client = SshClient(address=saved_context.env.host, start_dir=args.src_dir)
             if args.clean:
-                client.rmdir(remote_src_dir)
-                client.cp_to_remote(local_src_dir, remote_src_dir)
+                client.rmdir(ssh_src_dir)
+                client.rmdir(ssh_build_dir)
+                client.cp_to_remote(src_dir, ssh_src_dir)
             client.sh(f"pydevops {remote_args}")
             save_context(build_dir, saved_context)
         elif saved_context.env.docker is not None:
+            docker_src_dir = remote_args.pop("docker_src_dir")
+            docker_build_dir = remote_args.pop("docker_build_dir")
+
+            remote_args["src_dir"] = docker_src_dir
+            remote_args["build_dir"] = docker_build_dir
             # Remove docker attribute (now we will execute commands in the
             # docker container).
             remote_args.pop("docker")
