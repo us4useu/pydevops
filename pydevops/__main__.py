@@ -91,7 +91,7 @@ def get_stages_to_execute(args, cfg, saved_context):
         return init_stages, build_stages
 
 
-def to_args_string(args_dict: dict):
+def to_args_string(args_dict: dict, double_escape_str:bool=False):
     result = []
     for k, v in args_dict.items():
         if v is None:
@@ -101,9 +101,14 @@ def to_args_string(args_dict: dict):
             if len(v) == 0:
                 continue
             v = " ".join(v)
-        if isinstance(v, str):
+        if isinstance(v, str) and k != "options":
             # Make sure the parameters will be properly enclosed by quotes"
-            v = f'"{v}"'
+            # In the case of ssh communication, a double quotes may be 
+            # necessary (so the remote command also gets quoted parameters).
+            if double_escape_str:
+                v = fr'"\"{v}\""'
+            else:
+                v = fr'"{v}"'
         elif isinstance(v, bool):
             if v:
                 # Put an empty flag
@@ -244,8 +249,8 @@ def main():
             # Move the execution to the remote host,
             # so on the remote host we would like to have
             remote_args["host"] = "localhost"
-            remote_args = to_args_string(remote_args)
-            client = SshClient(address=saved_context.env.host)
+            remote_args = to_args_string(remote_args, double_escape_str=True)
+            client = SshClient(address=saved_context.env.host, start_dir=args.src_dir)
             if args.clean:
                 client.rmdir(remote_src_dir)
                 client.cp_to_remote(local_src_dir, remote_src_dir)
