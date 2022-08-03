@@ -101,6 +101,9 @@ def to_args_string(args_dict: dict):
             if len(v) == 0:
                 continue
             v = " ".join(v)
+        if isinstance(v, str):
+            # Make sure the parameters will be properly enclosed by quotes"
+            v = f'"{v}"'
         elif isinstance(v, bool):
             if v:
                 # Put an empty flag
