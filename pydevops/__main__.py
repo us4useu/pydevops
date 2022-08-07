@@ -53,7 +53,15 @@ def read_context(build_dir: str) -> SavedContext:
         return saved_context
 
 
-def save_context(build_dir: str, context: SavedContext):
+def save_context(build_dir: str, context: SavedContext, secrets):
+    if secrets is not None:
+        # Remove options from the secrets list, before saving the context.
+        options = context.options
+        for secret in secrets:
+            result = options.pop(secret, None)
+            if result is None:
+                raise ValueError(f"There is option with key: {secret}")
+        context = dataclasses.replace(context, options=options)
     output_path = os.path.join(build_dir, CONTEXT_FILE_NAME)
     pickle.dump(context, open(output_path, "wb"))
 
@@ -192,6 +200,13 @@ def main():
                              "previously created artifacts. Pipeline will go "
                              "through all init stages.",
                         action="store_true", default=False)
+    parser.add_argument("--secrets", dest="secrets",
+                        help="A list of option names that should be not saved "
+                             "to the context file. Use it e.g. to avoid "
+                             "saving sensitive data like personal "
+                             "authentication tokens.",
+                        type=str, required=False, default=None,
+                        nargs="*")
     args = parser.parse_args()
     host = args.host
     docker = args.docker
@@ -227,7 +242,7 @@ def main():
             init_process = Process(cfg.stages, init_stages, ctx=context)
             init_process.execute()
 
-        save_context(build_dir, saved_context)
+        save_context(build_dir, saved_context, args.secrets)
 
         if len(build_stages) > 0:
             logger.info(f"Running build steps: {build_stages}")
@@ -264,7 +279,7 @@ def main():
                 client.rmdir(ssh_build_dir)
                 client.cp_to_remote(src_dir, ssh_src_dir)
             client.sh(f"pydevops {remote_args}")
-            save_context(build_dir, saved_context)
+            save_context(build_dir, saved_context, args.secrets)
         elif saved_context.env.docker is not None:
             docker_src_dir = remote_args.pop("docker_src_dir")
             docker_build_dir = remote_args.pop("docker_build_dir")
@@ -283,7 +298,7 @@ def main():
             saved_context = SavedContext(version=__version__, env=env,
                                      options=options)
             client.sh(f"pydevops {remote_args}")
-            save_context(build_dir, saved_context)
+            save_context(build_dir, saved_context, args.secrets)
 
 
 if __name__ == "__main__":
