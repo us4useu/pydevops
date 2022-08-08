@@ -33,7 +33,7 @@ CONTEXT_FILE_NAME = "pydevops.cfg"
 
 def load_cfg(path):
     if not pathlib.Path(path).is_file():
-        raise ValueError(f"{CFG_NAME} file not found.")
+        raise ValueError(f"{path} file not found.")
     module_name = "pydevops_cfg"
     spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
