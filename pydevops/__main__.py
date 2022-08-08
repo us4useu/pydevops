@@ -208,7 +208,9 @@ def main():
                              "authentication tokens.",
                         type=str, required=False, default=None,
                         nargs="*")
+    logger.debug(f"SYS ARGV: {sys.argv}")
     args = parser.parse_args()
+    logger.debug(f"OPTIONS: {args.options}")
     host = args.host
     docker = args.docker
     src_dir = args.src_dir
