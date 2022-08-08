@@ -278,9 +278,9 @@ def main():
             remote_args = to_args_string(remote_args, double_escape_str=True)
             client = SshClient(address=saved_context.env.host, start_dir=args.src_dir)
             if args.clean:
-                client.rmdir(ssh_src_dir)
-                client.rmdir(ssh_build_dir)
-                client.cp_to_remote(src_dir, ssh_src_dir)
+                client.rmdir(ssh_src_dir, cd_to_start_dir=False)
+                client.rmdir(ssh_build_dir, cd_to_start_dir=False)
+                client.cp_to_remote(src_dir, ssh_src_dir, cd_to_start_dir=False)
             client.sh(f"pydevops {remote_args}")
             save_context(build_dir, saved_context, args.secrets)
         elif saved_context.env.docker is not None:
