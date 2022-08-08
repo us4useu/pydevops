@@ -1,28 +1,15 @@
 from pydevops.sh import Shell
+import os
+import pathlib
+from pydevops.utils import get_logger
 
 
 class DockerClient:
     """
-    Accepts the following options:
-
-    This is a context manager; entering this context:
-    - docker container will be built if
-    build -> image id
-    create -> container id
-    start -> container id
-    trzeba w kontekście zapisać informacje, co jest dostepne
-    np. 'name:: nazwa obrazu; build:: -f .docker/build/Dockerfile;run:: -v asada:/asdadsa asdadada/asdadas' -> to zbuduje nowy obraz,
-    -> w wyniku tego dostaniemy image id
-    -- > w wyniku tego w env powinien pojawic sie zapis:
-    'run::image_id -v asdsada/adsadsada asasdsasadadsa'
-    Nastepnie ten container id powinien byc uzywany do wszystkich polecen
-    Wszystkie polecenia powinny byc wykonywane w odpowiednim
-    Teraz:
-    - jezeli uzytkownik ponownie w docker wskaze build:: -> konieczne jest przebudowanie kontenera (bo np. chce swiezego builda)
-    - jezeli image_id nie istnieje, konieczne jest ponowne wykonanie build: moze wystarczy na razie zrobic to z clean?
     """
 
     def __init__(self, parameters: str):
+        self.logger = get_logger(f"{type(self).__name__}_{id(self)}")
         self.parameters = self._index_parameters(parameters)
         self.image_id = None
         self.cmd_exec = Shell()
@@ -35,6 +22,26 @@ class DockerClient:
         # Use the latest image with a given name
         self.image_id = self.cmd_exec.run(f"docker images -q {name}",
                                           capture_stdout=True).stdout
+
+    def cp_to_remote(self, src_dir: str, dst_dir: str):
+        if src_dir == ".":
+            src_dir = os.getcwd()
+        options = ""
+        if pathlib.Path(src_dir).is_dir():
+            options += "-r"
+        # Write the directory to parent.
+        dst_dir_parent = str(pathlib.Path(dst_dir).parents[0])
+        self.mkdir(dst_dir_parent)
+        self.sh(f"cp -r {src_dir} {dst_dir}")
+
+    def rmdir(self, dir: str):
+        self.sh(f"rm -rf {dir}")
+
+    def mkdir(self, dir: str):
+        self.sh(f"mkdir -p {dir}")
+
+    def rename(self, src: str, dst: str):
+        self.sh(f"mv {src} {dst}")
 
     def sh(self, cmd: str):
         if self.image_id is None:

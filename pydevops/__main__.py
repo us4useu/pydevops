@@ -298,6 +298,10 @@ def main():
             env = dataclasses.replace(env, docker=client.params)
             saved_context = SavedContext(version=__version__, env=env,
                                      options=options)
+            if args.clean:
+                client.rmdir(docker_src_dir)
+                client.rmdir(docker_build_dir)
+                client.cp_to_remote(src_dir, docker_src_dir)
             client.sh(f"pydevops {remote_args}")
             save_context(build_dir, saved_context, args.secrets)
 
