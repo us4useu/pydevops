@@ -301,6 +301,7 @@ def main():
             saved_context = SavedContext(version=__version__, env=env,
                                      options=options)
             if args.clean:
+                logger.info("Cleaning up docker target directories...")
                 client.rmdir(docker_src_dir)
                 client.rmdir(docker_build_dir)
                 client.cp_to_remote(src_dir, docker_src_dir)

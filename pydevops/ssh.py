@@ -38,7 +38,6 @@ class SshClient:
     def rmdir(self, dir: str, cd_to_start_dir=True):
         # The below works in Windows cmd and unix bash.
         self.sh(f"rm -rf {dir}", cd_to_start_dir=cd_to_start_dir)
-        # self.sh(f"'python -c \"import shutil;shutil.rmtree(\\\"{dir}\\\", ignore_errors=True)\"'")
 
     def mkdir(self, dir: str, cd_to_start_dir=True):
         self.sh(f"'python -c \"import pathlib; pathlib.Path(\\\"{dir}\\\").mkdir(parents=True, exist_ok=True)\"'",
