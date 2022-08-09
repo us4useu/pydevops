@@ -49,7 +49,7 @@ class SshClient:
 
     def sh(self, cmd: str, cd_to_start_dir=True):
         port = f"-p{self.port}" if self.port else ""
-        start_cd_cmd = f"cd {self.start_dir} ; " if cd_to_start_dir else ""
+        start_cd_cmd = f"cd {self.start_dir} && " if cd_to_start_dir else ""
         self.cmd_exec.run(f"ssh {port} {self.host} {start_cd_cmd} {cmd}")
 
     def split_address(self, address: str):
