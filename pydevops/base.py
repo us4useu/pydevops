@@ -54,6 +54,9 @@ class DevopsCfgContext:
     def get_option(self, key: str):
         return self.options[key]
 
+    def remove_option(self, key: str):
+        return self.options.pop(key)
+
 
 def expand_defaults(defaults, ctx: DevopsCfgContext):
     result = {}
