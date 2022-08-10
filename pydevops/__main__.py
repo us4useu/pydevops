@@ -219,7 +219,8 @@ def main():
                                   build_dir=build_dir)
     cfg = load_cfg(os.path.join(src_dir, CFG_NAME))
     env = None
-    if args.clean:
+    ctx_file_exists = (pathlib.Path(build_dir)/pathlib.Path(CONTEXT_FILE_NAME)).exists()
+    if args.clean or not ctx_file_exists:
         env = cleanup(src_dir, build_dir, args)
 
     saved_context = read_context(build_dir)
