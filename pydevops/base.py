@@ -44,9 +44,32 @@ def apply_aliases(options: dict, aliases: dict):
     return result
 
 
+@dataclass(frozen=True)
+class DevopsCfgContext:
+    options: dict
+
+    def has_option(self, key: str):
+        return key in self.options
+
+    def get_option(self, key: str):
+        return self.options[key]
+
+
+def expand_defaults(defaults, ctx: DevopsCfgContext):
+    result = {}
+    # Convert all functions to raw values.
+    for k, v in defaults.items():
+        if callable(v):
+            v = v(ctx)
+        result[k] = v
+    return result
+
+
 def create_context(env, args, options, cfg):
     options = options.copy()
-    options = {**cfg.defaults, **options}
+
+    defaults = expand_defaults(cfg.defaults, DevopsCfgContext(options))
+    options = {**defaults, **options}
     options = apply_aliases(options, cfg.aliases)
     return Context(env=env, args=args, options=options)
 

@@ -24,9 +24,7 @@ from pydevops.version import __version__
 from pydevops.docker import DockerClient
 from pydevops.ssh import SshClient
 
-
 logger = get_logger("__main__")
-
 
 CFG_NAME = "devops.py"
 CONTEXT_FILE_NAME = "pydevops.cfg"
@@ -100,7 +98,7 @@ def get_stages_to_execute(args, cfg, saved_context):
         return init_stages, build_stages
 
 
-def to_args_string(args_dict: dict, double_escape_str:bool=False):
+def to_args_string(args_dict: dict, double_escape_str: bool = False):
     result = []
     for k, v in args_dict.items():
         if v is None:
@@ -219,7 +217,8 @@ def main():
                                   build_dir=build_dir)
     cfg = load_cfg(os.path.join(src_dir, CFG_NAME))
     env = None
-    ctx_file_exists = (pathlib.Path(build_dir)/pathlib.Path(CONTEXT_FILE_NAME)).exists()
+    ctx_file_exists = (pathlib.Path(build_dir) / pathlib.Path(
+        CONTEXT_FILE_NAME)).exists()
     if args.clean or not ctx_file_exists:
         env = cleanup(src_dir, build_dir, args)
 
@@ -240,7 +239,7 @@ def main():
     if saved_context.env.is_local:
         # Proceed with execution
         context = create_context(env=saved_context.env, args=args,
-                          options=saved_context.options, cfg=cfg)
+                                 options=saved_context.options, cfg=cfg)
         if len(init_stages) > 0:
             logger.info(f"Running initialization steps: {init_stages}")
             init_process = Process(cfg.stages, init_stages, ctx=context)
@@ -265,7 +264,8 @@ def main():
             # Convert each option value to string, to avoid passing
             # e.g. description=Build #4 test instead of 
             # description="Build #4 test"
-            remote_args["options"] = sanitize_remote_options(remote_args["options"])
+            remote_args["options"] = sanitize_remote_options(
+                remote_args["options"])
 
         if saved_context.env.host != "localhost":
             # Remote host.
@@ -277,7 +277,8 @@ def main():
             remote_args["build_dir"] = ssh_build_dir
             remote_args["host"] = "localhost"
             remote_args = to_args_string(remote_args, double_escape_str=True)
-            client = SshClient(address=saved_context.env.host, start_dir=args.src_dir)
+            client = SshClient(address=saved_context.env.host,
+                               start_dir=args.src_dir)
             if args.clean:
                 client.rmdir(ssh_src_dir, cd_to_start_dir=False)
                 client.rmdir(ssh_build_dir, cd_to_start_dir=False)
@@ -300,7 +301,7 @@ def main():
             # existing.
             env = dataclasses.replace(env, docker=client.params)
             saved_context = SavedContext(version=__version__, env=env,
-                                     options=options)
+                                         options=options)
             if args.clean:
                 logger.info("Cleaning up docker target directories...")
                 client.rmdir(docker_src_dir)
