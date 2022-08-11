@@ -156,18 +156,111 @@ Currently `pydevops` provides the implementation of the following steps:
 
 ##### CMake
 
-###### Configure
+######  Configure
 
-- `pydevops.cmake.Configure`,
+Runs CMake's configure step.
+
 - options:
-  - asdsadaas
+  - `src_dir`: path to the source directory
+  - `build_dir`: path to the build directory
+  - `generator`: cmake project generator name (cmake option -G) (e.g. "Unix Makefiles")
+  - `*`: all the other options will be passed to the `cmake` as `-{parameter}=value`
+
 
 ###### Build
 
+Runs CMake's build step.
+
+- options:
+    - `src_dir`: path to the source directory
+    - `build_dir`: path to the build directory
+    - `config`: build type to apply on the build step (Debug or Release), on Windows, on other platforms use configure option `DCMAKE_BUILD_TYPE`
+    - `j`: number of parallel jobs to run
+    - `verbose`: turn on verbose output
+
+
 ###### Test
+
+Runs CTest in the given build directory.
+
+- options:
+    - `src_dir`: path to the source directory
+    - `build_dir`: path to the build directory
+    - `C`: build type to apply (e.g. Debug or Release)
+    - `j`: number of parallel jobs to run
+    - `verbose`: turn on verbose output
 
 ###### Install
 
+- options:
+    - `build_dir`: path to the build directory
+    - `config`: build type to use (e.g. Debug or Release)
+    - `prefix`: path to the output directory
+
+##### Conan
+
+###### Install
+
+Runs `conan install` step (installs all the dependencies required by the project).
+
+- options:
+    - `src_dir`: path to the source directory
+    - `build_dir`: path to the build directory
+    - `build_type`: build type to use (e.g. Debug or Release)
+    - `build` (optional, default: None): what build strategy to use (e.g. build=missing will build only the missing packages)
+    - `profile` (optional, default: None): path to the conan profile to use
+    - `conan_home` (optional, default: None): path to the directory, where conan home should be located
+
+##### us4us
+
+
+
+###### Package
+
+Publish documentation according to policy used by us4us.
+
+- options:
+    - `src_artifact`: list of paths (glob) to the input artifacts, paths should be separated by semicolons
+    - `dst_dir`: path where the package should be located
+    - `dst_artifact` (optional, default `__same__`) the name of the output artifact
+    - `release_name`: version of the release (will be used as a name of the docs folder)
+
+###### PublishDocs
+
+Publish documentation according to policy used by us4us.
+
+- options:
+    - `install_dir`: path to the directory, where build and installed package is located
+    - `repository`: full url to the repository, where documentation should be located
+    - `commit_msg`: commit message to use,
+    - `version`: version of the release (will be used as a name of the docs folder)
+
+
+###### PublishReleases
+
+Publishes given artifacts located on the current host in the given
+repository as a given dst_artifact.
+
+If the src artifact is a regular file, it will be renamed to the
+given dst_artifact (if provided).
+
+If there is no release with the given release_name, it will be created.
+Release name with pattern different than `^v[0-9]+\.[0-9]+\.[0-9]+$`
+will be marked as pre-release.  If the release is pre-release, a new tag with the same name as branch
+will be created.
+
+Note: if there are multiple artifacts pointed by src_artifact, and all
+of them are regular files, the name of the artifacts will not be changed
+to the dst_artifact. If there are multiple files and some of them are
+directories, all the files will be zipped to a single dst_artifact.zip file.
+
+- options:
+    - `release_name`: target release name
+    - `src_artifact`: source artifact name (glob),
+    - `dst_artifact` (optional, if not provided, the src_artifact name will be used): the name of the artifact (asset) to create
+    - `description` (optional, default: empty string): text that should be appended to the release description,
+    - `token`: Github Personal Access Token (PAT)
+    - `repository_name`: Github user_name/repository_name
 
 ## License
 
