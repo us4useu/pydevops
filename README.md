@@ -8,7 +8,7 @@ Application build tools used in us4us projects.
 
 ### Configuring project pipeline
 
-Project configuration file `pydevops.py` should be stored in the project's 
+Project configuration file `devops.py` should be stored in the project's 
 root directory. The configuration file should have the following properties:
 
 - `stages`: a dictionary (mapping) from stage `name: str` to the `list` of 
