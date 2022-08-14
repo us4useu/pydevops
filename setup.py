@@ -6,7 +6,7 @@ with open("pydevops/version.py") as f:
 
 
 setuptools.setup(
-    name="pydevops",
+    name="pydevops-us4us",
     version=version_namespace["__version__"],
     author="us4us Ltd.",
     author_email="support@us4us.eu",
@@ -19,7 +19,6 @@ setuptools.setup(
         "Development Status :: 1 - Planning",
 
         "Intended Audience :: Developers",
-        "Intended Audience :: Science/Research",
 
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
