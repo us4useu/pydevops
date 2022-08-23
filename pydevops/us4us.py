@@ -95,15 +95,12 @@ class Package(Step):
         src_artifact = ctx.get_option("src_artifact")
         dst_dir = ctx.get_option("dst_dir")
         dst_artifact = ctx.get_option_default("dst_artifact", "__same__")
-        prerelease = _is_prerelease(release_name)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             artifacts = self.prepare_artifacts(
                 src_artifact=src_artifact,
                 dst_artifact=dst_artifact,
-                workdir=temp_dir,
-                prerelease=prerelease
-            )
+                workdir=temp_dir)
             # Copy artifacts from the temporary directory to the dst_dir.
             pydevops.sh.mkdir(dst_dir, exist_ok=True)
             self.copy_files(artifacts, dst_dir)
@@ -112,7 +109,7 @@ class Package(Step):
         return shutil.make_archive(dst_zip_file, "zip", root_dir=root_dir)
 
     def prepare_artifacts(self, src_artifact: str, dst_artifact :str,
-                          workdir: str, prerelease: bool):
+                          workdir: str):
         src_artifact = src_artifact.strip().strip(";")
         dst_artifact = dst_artifact.strip()
         patterns = src_artifact.split(";")
@@ -127,9 +124,6 @@ class Package(Step):
                                    for file in output_files)
 
         if dst_artifact != "__same__":
-            if prerelease:
-                today = date.today().strftime('%Y%m%d')
-                dst_artifact = f"{dst_artifact}-{today}"
             dst_path = os.path.join(workdir, dst_artifact)
         else:
             dst_path = None
