@@ -67,6 +67,7 @@ class PublishDocs(Step):
                     raise ValueError("Something wrong when committing the changes,"
                                  "check the errors in log.")
                 ctx.sh(f"git push {repository}")
+                os.chdir(cwd)
         finally:
             os.chdir(cwd)
             shutil.rmtree(repository_name, ignore_errors=True)
