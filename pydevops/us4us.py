@@ -60,13 +60,16 @@ class PublishDocs(Step):
                 ctx.sh("git add -A")
                 commit_msg = f"Updated docs: {commit_msg}"
                 result = self.git_commit(commit_msg)
-                if result == 'ntc':
+                if result == "ntc":
                     print("Nothing to commit")
-                    return
                 elif result != "ok":
-                    raise ValueError("Something wrong when committing the changes,"
+                    # We need to leave the temporary directory before its deleted by the
+                    # context manager, otherwise we will get an "Access denied" error on Windows.
+                    os.chdir(cwd)
+                    raise ValueError("Something went wrong when committing the changes, "
                                  "check the errors in log.")
-                ctx.sh(f"git push {repository}")
+                else:
+                    ctx.sh(f"git push {repository}")
                 os.chdir(cwd)
         finally:
             os.chdir(cwd)
