@@ -218,12 +218,18 @@ class PublishReleases(Step):
         token = ctx.get_option("token")
         description = ctx.get_option_default("description", "")
         is_prerelease = _is_prerelease(release_name)
+        # Target branch to which the tag should be associated.
+        target_commitish = ctx.get_option_default(
+            "target_commitish", "master" if not is_prerelease else release_name
+        )
         release_id = self.create_release(
             repository_name=repository_name,
             release=release_name,
             body=description,
             prerelease=is_prerelease,
-            token=token)
+            token=token,
+            target_commitish=target_commitish
+        )
         artifacts = self.get_artifacts(src_artifact)
         for artifact in artifacts:
             self.publish_asset(
@@ -240,18 +246,20 @@ class PublishReleases(Step):
             output_files.extend(glob.glob(pattern))
         return output_files
 
-    def create_release(self, repository_name, release, body, token, prerelease):
+    def create_release(self, repository_name, release, body, token, prerelease,
+                       target_commitish):
         """
         Create new release, using the given parameters.
         If the release already exists, update it (append to the description
         of the release the body provided as an input).
         """
         release_tag = release if not prerelease else f"{release}-first"
-        target_commitish = "master" if not prerelease else release
         print(f"Creating release: "
               f"repository_name: {repository_name}, "
               f"release (tag_name): {release} "
-              f"body: {body}")
+              f"body: {body} "
+              f"target commitish: {target_commitish} "
+        )
         response = requests.post(url=self.get_api_url(repository_name),
                 headers={
                     "Authorization": f"token {token}"
@@ -292,6 +300,7 @@ class PublishReleases(Step):
                     target_commitish=target_commitish,
                     prerelease=prerelease,
                     token=token)
+                print(resp)
                 r.raise_for_status()
                 return release_id
             else:
