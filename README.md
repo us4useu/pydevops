@@ -177,7 +177,7 @@ Runs CMake's build step.
     - `config`: build type to apply on the build step (Debug or Release), on Windows, on other platforms use configure option `DCMAKE_BUILD_TYPE`
     - `j`: number of parallel jobs to run
     - `verbose`: turn on verbose output
-
+    - `target`: build a single target only (note that if you set this you might need to disable the install step)
 
 ###### Test
 

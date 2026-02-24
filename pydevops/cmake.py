@@ -24,7 +24,6 @@ class Configure(Step):
 
 
 class Build(Step):
-
     def execute(self, ctx: Context):
         src_dir = ctx.get_param("src_dir")
         build_dir = ctx.get_param("build_dir")
@@ -34,6 +33,9 @@ class Build(Step):
         cmd = f"cmake --build {build_dir} --config {config} -j {n_jobs}"
         if verbose:
             cmd += " --verbose"
+        if ctx.has_option("target"):
+            target = ctx.get_option("target")
+            cmd += f" --target {target}"
         ctx.sh(cmd)
 
 

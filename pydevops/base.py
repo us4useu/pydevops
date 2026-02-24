@@ -148,6 +148,14 @@ class Context:
         except AttributeError as e:
             raise KeyError(f"Missing param: {name}")
 
+    def has_option(self, name: str):
+        """
+        Returns whether a build option is set.
+
+        :param name:
+        """
+        return name in self.options
+
     def get_option(self, name: str):
         """
         Returns build option value.
