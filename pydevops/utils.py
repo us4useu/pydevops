@@ -1,11 +1,22 @@
 import logging
 import inspect
 
+import pydevops.version as version
+
 LOGGING_FORMAT = "[%(asctime)s][%(name)s][%(levelname)s] %(message)s"
 ERROR_FORMAT = LOGGING_FORMAT + " (%(filename)s:%(lineno)d)"
 
 LOGGING_LEVEL=logging.DEBUG
 
+def is_version_at_least(minimum_version):
+    version_parts = [int(part) for part in version.__version__.split('.')]
+    minimum_parts = [int(part) for part in minimum_version.split('.')]
+    for v, m in zip(version_parts, minimum_parts):
+        if v < m:
+            return False
+        elif v > m:
+            return True
+    return True
 
 # Credits:
 # https://stackoverflow.com/questions/384076/

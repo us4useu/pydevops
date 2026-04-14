@@ -18,9 +18,15 @@ class Configure(Step):
         src_dir = ctx.get_param("src_dir")
         build_dir = ctx.get_param("build_dir")
         options = ctx.get_options()
-        generator = options.pop("generator")
+        generator_options = ""
+        generator = options.pop("generator", None)
+        if generator:
+            generator_options = f"-G {generator}"
+        toolset = options.pop("toolset", None)
+        if toolset:
+            generator_options += f" -T {toolset}"
         others = _convert_dict_to_kv_params(options)
-        ctx.sh(f"cmake -S {src_dir} -B {build_dir} -G {generator} {others}")
+        ctx.sh(f"cmake -S {src_dir} -B {build_dir} {generator_options} {others}")
 
 
 class Build(Step):
