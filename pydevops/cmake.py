@@ -25,8 +25,14 @@ class Configure(Step):
         toolset = options.pop("toolset", None)
         if toolset:
             generator_options += f" -T {toolset}"
+        preset = options.pop("preset", None)
+        if preset:
+            generator_options += f" --preset {preset}"
+        else:
+            # This is a very simplified behavior, but it works for us
+            generator_options += f"-B {build_dir}"
         others = _convert_dict_to_kv_params(options)
-        ctx.sh(f"cmake -S {src_dir} -B {build_dir} {generator_options} {others}")
+        ctx.sh(f"cmake -S {src_dir} {generator_options} {others}")
 
 
 class Build(Step):
@@ -36,7 +42,13 @@ class Build(Step):
         config = ctx.get_option("config")
         n_jobs = ctx.get_option_default("j", 1)
         verbose = ctx.get_option_default("verbose", False)
-        cmd = f"cmake --build {build_dir} --config {config} -j {n_jobs}"
+        preset_or_build_dir = ""
+        preset = ctx.get_option_default("preset", None)
+        if preset:
+            preset_or_build_dir = f" --preset {preset}"
+        else:
+            preset_or_build_dir = f" {build_dir}"
+        cmd = f"cmake --build {preset_or_build_dir} --config {config} -j {n_jobs}"
         if verbose:
             cmd += " --verbose"
         if ctx.has_option("target"):
@@ -51,13 +63,17 @@ class Test(Step):
         build_dir = ctx.get_param("build_dir")
         config = ctx.get_option("C")
         verbose = ctx.get_option_default("verbose", False)
+        preset = ctx.get_option_default("preset", None)
         # Note: tests have to be run from the build dir
         cwd = os.getcwd()
         try:
-            os.chdir(build_dir)
+            if not preset:
+                os.chdir(build_dir)
             cmd = f"ctest -C {config}"
             if verbose:
                 cmd += " --verbose"
+            if preset:
+                cmd += f" --preset {preset}"
             ctx.sh(cmd)
         finally:
             os.chdir(cwd)
@@ -68,8 +84,9 @@ class Install(Step):
         build_dir = ctx.get_param("build_dir")
         config = ctx.get_option("config")
         prefix = ctx.get_option("prefix")
+        build_dir_suffix = ctx.get_option_default("build_dir_suffix", "")
         # Note: tests have to be run from the build dir
-        ctx.sh(f"cmake --install {build_dir} "
+        ctx.sh(f"cmake --install {build_dir}{build_dir_suffix} "
                f"--prefix {prefix} "
                f"--config {config}")
 

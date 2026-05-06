@@ -4,12 +4,14 @@ import importlib
 import importlib.util
 import logging
 import pathlib
+import platform
 import sys
 import os.path
 from collections import defaultdict
 from collections.abc import Iterable
 from typing import Tuple
 import pickle
+import subprocess
 
 from pydevops.utils import get_logger
 from pydevops.base import (
@@ -136,7 +138,11 @@ def sanitize_remote_options(options):
 def cleanup(src_dir, build_dir, args):
     docker = args.docker
     logger.info(f"Recreating pydevops environment in {build_dir}")
-    sh.rmdir(build_dir)
+    # Don't even ask
+    if platform.system() == "Windows":
+        subprocess.run(f'rd /s /q "{build_dir}"', shell=True, check=True)
+    else:
+        sh.rmdir(build_dir)
     sh.mkdir(build_dir)
     # create new environment from the input args, set it to saved_context
     env = Environment(host=args.host, docker=docker, src_dir=src_dir,
