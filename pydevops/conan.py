@@ -10,10 +10,10 @@ class Install(Step):
         build = context.get_option_default("build", None)
         profile_file = context.get_option_default("profile", None)
         conan_home = context.get_option_default("conan_home", None)
-        cmd = f"conan install --build=missing {src_dir} -if {build_dir} " \
-              f"-s build_type={build_type} "
-        if build:
-            cmd += f"--build={build} "
+        cmd = f"conan install --build=missing {src_dir} --update " \
+              f"-s build_type={build_type}"
+        #if build:
+        #    cmd += f"--build={build} "
         if profile_file:
             cmd += f"--profile={profile_file}"
         if conan_home:
