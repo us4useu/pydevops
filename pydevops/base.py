@@ -44,9 +44,13 @@ def apply_aliases(options: dict, aliases: dict):
     return result
 
 def apply_transforms(options: dict, transforms: set):
-    # A transform lambda takes in all options and returns a set of options to override.
-    # For example, take in build_type and output some_stage_build_type=STAGE_[lowercase(build_type)]:
-    # lambda options: {f"some_stage_build_type": f"STAGE_{options['build_type'].lower()}"}
+    """
+    A transform lambda takes in all options and returns a set of options to
+    override. For example, take in build_type and output
+    some_stage_build_type=STAGE_[lowercase(build_type)]: lambda options: {
+    f"some_stage_build_type": f"STAGE_{options['build_type'].lower()}"}
+    """
+
     result = options.copy()
     for transform in transforms:
         if callable(transform):
