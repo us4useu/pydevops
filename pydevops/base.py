@@ -117,10 +117,22 @@ class SavedContext:
 
 
 class Context:
-    def __init__(self, env: Environment, args, options: dict):
+    """
+    :param env: build-time environment parameters
+    :param args: the arguments passed to the pydevops, see __main__
+    :param options: user defined options (--options ...)
+    :param shared: a shared context available for all stages, useful, in case
+        there is a need to pass some information e.g. between cfg and build
+        stages. See, e.g. conan and cmake presets.
+    """
+    def __init__(self, env: Environment, args, options: dict,
+                 shared=None):
+        if shared is None:
+            shared = {}
         self.env = env
         self.args = args
         self.options = options
+        self.shared = shared
         self.cmd_exec = Shell()
 
     def step_view(self, step_name: str):
@@ -151,7 +163,8 @@ class Context:
                 option_name = sanitize(option_name)
                 if option_stage == stage and option_step == step:
                     new_options[option_name] = v
-        return Context(env=self.env, args=self.args, options=new_options)
+        return Context(env=self.env, args=self.args, options=new_options,
+                       shared=self.shared)
 
     def get_param(self, name: str):
         """
@@ -207,6 +220,48 @@ class Context:
 
     def mkdir(self, path: str):
         return self.cmd_exec.mkdir(path)
+
+    def has_shared(self, name: str):
+        """
+        Returns true when a given shared value is set
+        """
+        return name in self.shared
+
+    def get_shared(self, name: str):
+        """
+        Returns a given shared value, or throws in case this shared
+        value is absent.
+        """
+        try:
+            return self.shared[name]
+        except KeyError as e:
+            raise KeyError(f"Missing shared value: {name}")
+
+    def has_value(self, name: str) -> bool:
+        """
+        Returns True if `name` is set either as a step option or in the
+        shared context.
+        """
+        return name in self.options or name in self.shared
+
+    def get_value(self, name: str):
+        """
+        Returns the value for `name`. Options take precedence over shared;
+        raises KeyError if neither has it.
+        """
+        if name in self.options:
+            return self.options[name]
+        if name in self.shared:
+            return self.shared[name]
+        raise KeyError(f"Missing value: {name}")
+
+    def set_shared(self, key: str, value: str):
+        """
+        Set shared value, available for all steps executed in ths
+        build pipeline.
+        Overrides existing values.
+        """
+        self.shared[key] = value
 
     @property
     def is_local(self):

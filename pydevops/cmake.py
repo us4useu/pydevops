@@ -25,9 +25,9 @@ class Configure(Step):
         toolset = options.pop("toolset", None)
         if toolset:
             generator_options += f" -T {toolset}"
-        preset = options.pop("preset", None)
-        if preset:
-            generator_options += f" --preset {preset}"
+        options.pop("preset", None)
+        if ctx.has_value("preset"):
+            generator_options += f" --preset {ctx.get_value('preset')}"
         else:
             # This is a very simplified behavior, but it works for us
             generator_options += f"-B {build_dir}"
@@ -43,9 +43,8 @@ class Build(Step):
         n_jobs = ctx.get_option_default("j", 1)
         verbose = ctx.get_option_default("verbose", False)
         preset_or_build_dir = ""
-        preset = ctx.get_option_default("preset", None)
-        if preset:
-            preset_or_build_dir = f" --preset {preset}"
+        if ctx.has_value("preset"):
+            preset_or_build_dir = f" --preset {ctx.get_value('preset')}"
         else:
             preset_or_build_dir = f" {build_dir}"
         cmd = f"cmake --build {preset_or_build_dir} --config {config} -j {n_jobs}"
@@ -63,17 +62,17 @@ class Test(Step):
         build_dir = ctx.get_param("build_dir")
         config = ctx.get_option("C")
         verbose = ctx.get_option_default("verbose", False)
-        preset = ctx.get_option_default("preset", None)
+        has_preset = ctx.has_value("preset")
         # Note: tests have to be run from the build dir
         cwd = os.getcwd()
         try:
-            if not preset:
+            if not has_preset:
                 os.chdir(build_dir)
             cmd = f"ctest -C {config}"
             if verbose:
                 cmd += " --verbose"
-            if preset:
-                cmd += f" --preset {preset}"
+            if has_preset:
+                cmd += f" --preset {ctx.get_value('preset')}"
             ctx.sh(cmd)
         finally:
             os.chdir(cwd)
