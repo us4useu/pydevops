@@ -21,16 +21,16 @@ class Configure(Step):
         generator_options = ""
         generator = options.pop("generator", None)
         if generator:
-            generator_options = f"-G {generator}"
+            generator_options = f"-G {generator} "
         toolset = options.pop("toolset", None)
         if toolset:
-            generator_options += f" -T {toolset}"
+            generator_options += f" -T {toolset} "
         options.pop("preset", None)
         if ctx.has_value("preset"):
-            generator_options += f" --preset {ctx.get_value('preset')}"
+            generator_options += f" --preset {ctx.get_value('preset')} "
         else:
             # This is a very simplified behavior, but it works for us
-            generator_options += f"-B {build_dir}"
+            generator_options += f"-B {build_dir} "
         others = _convert_dict_to_kv_params(options)
         ctx.sh(f"cmake -S {src_dir} {generator_options} {others}")
 
@@ -68,7 +68,7 @@ class Test(Step):
         try:
             if not has_preset:
                 os.chdir(build_dir)
-            cmd = f"ctest -C {config}"
+            cmd = f"ctest -C {config} "
             if verbose:
                 cmd += " --verbose"
             if has_preset:

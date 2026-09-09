@@ -89,7 +89,8 @@ def create_context(env, args, options, cfg):
     defaults = expand_defaults(cfg.defaults, DevopsCfgContext(options))
     options = {**defaults, **options}
     options = apply_aliases(options, cfg.aliases)
-    options = apply_transforms(options, cfg.transforms)
+    if hasattr(cfg, "transforms") and cfg.transforms:
+        options = apply_transforms(options, cfg.transforms)
     return Context(env=env, args=args, options=options)
 
 
