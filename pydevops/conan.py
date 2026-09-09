@@ -1,30 +1,8 @@
 from pydevops.base import Step, Context
+from pydevops.presets import find_conan_preset
 from pydevops.utils import is_version_at_least
-import json
 import os
 import re
-
-
-def _extract_conan_preset(build_dir: str, build_type: str):
-    """
-    Read conan-generated CMakePresets.json and return the configure preset
-    name matching the given build_type.
-    """
-    presets_path = os.path.join(build_dir, "CMakePresets.json")
-    if not os.path.isfile(presets_path):
-        return None
-    with open(presets_path) as f:
-        data = json.load(f)
-
-    configures = data.get("configurePresets") or []
-    matched = [
-        p for p in configures
-        if (p.get("cacheVariables") or {}).get("CMAKE_BUILD_TYPE", "").lower()
-           == build_type.lower()
-    ] or configures
-    if not matched:
-        return None
-    return matched[0]["name"]
 
 
 class Install(Step):
@@ -67,6 +45,6 @@ class Install(Step):
             context.sh(cmd)
 
         if is_v2:
-            preset = _extract_conan_preset(build_dir, build_type)
+            preset = find_conan_preset(src_dir, build_dir, build_type)
             if preset:
-                context.set_shared("preset", preset)
+                context.set_shared("preset", preset["name"])

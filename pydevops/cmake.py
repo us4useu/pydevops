@@ -1,5 +1,32 @@
 import os
 from pydevops.base import Step, Context
+from pydevops import presets
+
+
+def _get_conan_preset(ctx: Context, build_type: str):
+    return presets.find_conan_preset(ctx.get_param("src_dir"),
+                                     ctx.get_param("build_dir"), build_type)
+
+
+def _get_configure_preset_name(ctx: Context, build_type: str):
+    """
+    Returns the name of the CMake configure preset to use, or None when there
+    is none.
+    """
+    if ctx.has_value("preset"):
+        return ctx.get_value("preset")
+    preset = _get_conan_preset(ctx, build_type)
+    return preset["name"] if preset is not None else None
+
+
+def _get_preset_name(ctx: Context, build_type: str, kind: str):
+    """
+    Returns the name of the build (or test) preset to use, or None when there
+    is none. See presets.find_conan_build_preset.
+    """
+    preset = presets.find_conan_build_preset(
+        ctx.get_param("src_dir"), ctx.get_param("build_dir"), build_type, kind)
+    return preset["name"] if preset is not None else None
 
 
 def _convert_dict_to_kv_params(d: dict):
@@ -26,8 +53,10 @@ class Configure(Step):
         if toolset:
             generator_options += f" -T {toolset} "
         options.pop("preset", None)
-        if ctx.has_value("preset"):
-            generator_options += f" --preset {ctx.get_value('preset')} "
+        preset = _get_configure_preset_name(
+            ctx, options.get("DCMAKE_BUILD_TYPE", ""))
+        if preset:
+            generator_options += f" --preset {preset} "
         else:
             # This is a very simplified behavior, but it works for us
             generator_options += f"-B {build_dir} "
@@ -43,8 +72,9 @@ class Build(Step):
         n_jobs = ctx.get_option_default("j", 1)
         verbose = ctx.get_option_default("verbose", False)
         preset_or_build_dir = ""
-        if ctx.has_value("preset"):
-            preset_or_build_dir = f" --preset {ctx.get_value('preset')}"
+        preset = _get_preset_name(ctx, config, presets.BUILD)
+        if preset:
+            preset_or_build_dir = f" --preset {preset}"
         else:
             preset_or_build_dir = f" {build_dir}"
         cmd = f"cmake --build {preset_or_build_dir} --config {config} -j {n_jobs}"
@@ -62,17 +92,17 @@ class Test(Step):
         build_dir = ctx.get_param("build_dir")
         config = ctx.get_option("C")
         verbose = ctx.get_option_default("verbose", False)
-        has_preset = ctx.has_value("preset")
+        preset = _get_preset_name(ctx, config, presets.TEST)
         # Note: tests have to be run from the build dir
         cwd = os.getcwd()
         try:
-            if not has_preset:
+            if not preset:
                 os.chdir(build_dir)
             cmd = f"ctest -C {config} "
             if verbose:
                 cmd += " --verbose"
-            if has_preset:
-                cmd += f" --preset {ctx.get_value('preset')}"
+            if preset:
+                cmd += f" --preset {preset}"
             ctx.sh(cmd)
         finally:
             os.chdir(cwd)
@@ -84,7 +114,12 @@ class Install(Step):
         config = ctx.get_option("config")
         prefix = ctx.get_option("prefix")
         build_dir_suffix = ctx.get_option_default("build_dir_suffix", "")
-        # Note: tests have to be run from the build dir
+        preset = _get_conan_preset(ctx, config)
+        if preset is not None:
+            binary_dir = presets.preset_binary_dir(
+                preset, ctx.get_param("src_dir"))
+            if binary_dir:
+                build_dir = binary_dir
         ctx.sh(f"cmake --install {build_dir}{build_dir_suffix} "
                f"--prefix {prefix} "
                f"--config {config}")
