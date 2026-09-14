@@ -110,20 +110,17 @@ class Test(Step):
 
 class Install(Step):
     def execute(self, ctx: Context):
-        build_dir = ctx.get_param("build_dir")
         config = ctx.get_option("config")
         prefix = ctx.get_option("prefix")
-        build_dir_suffix = ctx.get_option_default("build_dir_suffix", "")
         preset = _get_conan_preset(ctx, config)
+        binary_dir = None
         if preset is not None:
             binary_dir = presets.preset_binary_dir(
                 preset, ctx.get_param("src_dir"))
-            if binary_dir:
-                build_dir = binary_dir
-        ctx.sh(f"cmake --install {build_dir}{build_dir_suffix} "
+        if binary_dir is None:
+            build_dir = ctx.get_param("build_dir")
+            build_dir_suffix = ctx.get_option_default("build_dir_suffix", "")
+            binary_dir = f"{build_dir}{build_dir_suffix}"
+        ctx.sh(f"cmake --install {binary_dir} "
                f"--prefix {prefix} "
                f"--config {config}")
-
-
-
-
