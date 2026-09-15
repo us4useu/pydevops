@@ -22,7 +22,7 @@ class Install(Step):
         is_v2 = is_version_at_least("2.0", m.group(0))
 
         if is_v2:
-            install_folder_flag = f"--output-folder={build_dir}"
+            install_folder_flag = ""
             home_env = {"CONAN_HOME": conan_home} if conan_home else None
         else:
             install_folder_flag = f"--install-folder={build_dir}"
