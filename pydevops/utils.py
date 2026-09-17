@@ -8,15 +8,14 @@ ERROR_FORMAT = LOGGING_FORMAT + " (%(filename)s:%(lineno)d)"
 
 LOGGING_LEVEL=logging.DEBUG
 
-def is_version_at_least(minimum_version):
-    version_parts = [int(part) for part in version.__version__.split('.')]
-    minimum_parts = [int(part) for part in minimum_version.split('.')]
-    for v, m in zip(version_parts, minimum_parts):
-        if v < m:
-            return False
-        elif v > m:
-            return True
-    return True
+def _parse(v):
+    return tuple(int(part) for part in v.split('.'))
+
+
+def is_version_at_least(minimum_version, current_version=None):
+    if current_version is None:
+        current_version = version.__version__
+    return _parse(current_version) >= _parse(minimum_version)
 
 # Credits:
 # https://stackoverflow.com/questions/384076/

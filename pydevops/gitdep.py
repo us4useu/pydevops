@@ -9,14 +9,17 @@ class Fetch(Step):
     def execute(self, context: Context):
         repo = context.get_option("repo")
         if repo is None:
-            raise ValueError("Option 'repo' must be provided for gitdeps.Fetch step.")
+            raise ValueError("Option 'repo' must be provided for gitdeps."
+                             "Fetch step.")
 
         revision = context.get_option("revision")
         if revision is None:
-            raise ValueError("Option 'revision' must be provided for gitdeps.Fetch step.")
+            raise ValueError("Option 'revision' must be provided for gitdeps."
+                             "Fetch step.")
         path_relative = context.get_option("path")
         if path_relative is None:
-            raise ValueError("Option 'path' must be provided for gitdeps.Fetch step.")
+            raise ValueError("Option 'path' must be provided for gitdeps."
+                             "Fetch step.")
 
         remove_old = context.get_option_default("remove_old", True)
 
