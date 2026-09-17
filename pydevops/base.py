@@ -43,6 +43,17 @@ def apply_aliases(options: dict, aliases: dict):
                     result[target] = alias_value
     return result
 
+def apply_transforms(options: dict, transforms: set):
+    # A transform lambda takes in all options and returns a set of options to override.
+    # For example, take in build_type and output some_stage_build_type=STAGE_[lowercase(build_type)]:
+    # lambda options: {f"some_stage_build_type": f"STAGE_{options['build_type'].lower()}"}
+    result = options.copy()
+    for transform in transforms:
+        if callable(transform):
+            new_options = transform(options)
+            if new_options:
+                result.update(new_options)
+    return result
 
 @dataclass(frozen=True)
 class DevopsCfgContext:
@@ -74,6 +85,7 @@ def create_context(env, args, options, cfg):
     defaults = expand_defaults(cfg.defaults, DevopsCfgContext(options))
     options = {**defaults, **options}
     options = apply_aliases(options, cfg.aliases)
+    options = apply_transforms(options, cfg.transforms)
     return Context(env=env, args=args, options=options)
 
 

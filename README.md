@@ -163,9 +163,9 @@ Runs CMake's configure step.
 - options:
   - `src_dir`: path to the source directory
   - `build_dir`: path to the build directory
-  - `generator`: cmake project generator name (cmake option -G) (e.g. "Unix Makefiles")
+  - `generator` (optional): cmake project generator name (cmake option -G) (e.g. "Unix Makefiles")
+  - `toolset` (0.5.0+, optional): cmake toolset (cmake option -T) (e.g. v141 will use VS 2017 toolset, regardless of the generator)
   - `*`: all the other options will be passed to the `cmake` as `-{parameter}=value`
-
 
 ###### Build
 
